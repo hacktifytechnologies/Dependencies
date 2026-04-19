@@ -56,7 +56,8 @@ apt install -y \
     docker-ce-cli \
     containerd.io \
     docker-buildx-plugin \
-    docker-compose-plugin
+    docker-compose-plugin \
+    nodejs
 
 pip3 install flask random paramiko  --break-system-packages
 
