@@ -43,7 +43,15 @@ apt install -y \
     wget \
     curl \
     unzip \ 
-    python3-pip
+    python3-pip \
+    curl \
+    git \
+    wget \
+    ca-certificates \
+    gnupg \
+    lsb-release \
+    apt-transport-https \
+    software-properties-common
 
 pip3 install flask random paramiko  --break-system-packages
 
