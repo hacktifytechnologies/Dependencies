@@ -51,7 +51,12 @@ apt install -y \
     gnupg \
     lsb-release \
     apt-transport-https \
-    software-properties-common
+    software-properties-common \
+    docker-ce \
+    docker-ce-cli \
+    containerd.io \
+    docker-buildx-plugin \
+    docker-compose-plugin
 
 pip3 install flask random paramiko  --break-system-packages
 
