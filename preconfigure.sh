@@ -1,25 +1,11 @@
 #!/bin/bash
 # =============================================================================
 # pre_install_dependencies.sh
-# Pre-installs ALL packages needed by every OS challenge setup.sh.
-# Bake this into your base VM snapshot BEFORE launching any challenge.
-#
-# Packages installed:
-#   apache2          — Rootbound, Revroot, TOCTOU, RepoLeak
-#   libapache2-mod-php — Rootbound
-#   php              — Rootbound, Revroot, TOCTOU, RepoLeak
-#   php-mysql        — RepoLeak
-#   gcc              — Revroot
-#   libcap2-bin      — Revroot (setcap)
-#   openssh-server   — Revroot, TOCTOU, RotateSu, RepoLeak
-#   git              — RepoLeak
-#   docker.io        — RepoLeak
-#   wget             — RepoLeak
-#   curl             — RepoLeak
-#   unzip            — RepoLeak
 # =============================================================================
 
 set -e
+
+export DEBIAN_FRONTEND=noninteractive
 
 echo "[*] Waiting for apt lock..."
 while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
@@ -27,9 +13,9 @@ while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
 done
 
 echo "[*] Updating package index..."
-apt update -y
+apt update
 
-echo "[*] Installing all challenge dependencies..."
+echo "[*] Installing base dependencies..."
 apt install -y \
     apache2 \
     libapache2-mod-php \
@@ -39,42 +25,83 @@ apt install -y \
     libcap2-bin \
     openssh-server \
     git \
-    docker.io \
     wget \
     curl \
-    unzip \ 
+    unzip \
     python3-pip \
-    curl \
-    git \
-    wget \
     ca-certificates \
     gnupg \
     lsb-release \
     apt-transport-https \
     software-properties-common \
+    nodejs
+
+# -----------------------------------------------------------------------------
+# Install Docker (official repo - docker-ce)
+# -----------------------------------------------------------------------------
+echo "[*] Installing Docker (official repo)..."
+
+install -m 0755 -d /etc/apt/keyrings
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
+    gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo \
+  "deb [arch=$(dpkg --print-architecture) \
+  signed-by=/etc/apt/keyrings/docker.gpg] \
+  https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | \
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+apt update
+
+apt install -y \
     docker-ce \
     docker-ce-cli \
     containerd.io \
     docker-buildx-plugin \
-    docker-compose-plugin \
-    nodejs
+    docker-compose-plugin
 
-pip3 install flask random paramiko  --break-system-packages
+# -----------------------------------------------------------------------------
+# Python dependencies
+# -----------------------------------------------------------------------------
+echo "[*] Installing Python packages..."
+pip3 install flask paramiko --break-system-packages
 
+# -----------------------------------------------------------------------------
+# Enable services
+# -----------------------------------------------------------------------------
 echo "[*] Enabling services at boot..."
-systemctl enable apache2 ssh docker 2>/dev/null || true
+systemctl enable apache2 ssh docker || true
 
+# -----------------------------------------------------------------------------
+# SSH Configuration
+# -----------------------------------------------------------------------------
 echo "[*] Enabling SSH password authentication..."
-sed -i 's/^#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
-sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
 
+sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+systemctl restart ssh
+
+# -----------------------------------------------------------------------------
+# PHP Configuration
+# -----------------------------------------------------------------------------
 echo "[*] Applying PHP config for lab use..."
-sed -i 's/allow_url_include = Off/allow_url_include = On/' /etc/php/*/apache2/php.ini 2>/dev/null || true
-sed -i 's/open_basedir =.*/open_basedir = ;/' /etc/php/*/apache2/php.ini 2>/dev/null || true
 
+find /etc/php/ -type f -name php.ini -exec sed -i \
+    -e 's/allow_url_include = Off/allow_url_include = On/' \
+    -e 's|^open_basedir =.*|open_basedir = ;|' {} + 2>/dev/null || true
+
+# -----------------------------------------------------------------------------
+# Apache Configuration
+# -----------------------------------------------------------------------------
 echo "[*] Enabling Apache rewrite module..."
 a2enmod rewrite
+systemctl restart apache2
 
+# -----------------------------------------------------------------------------
 echo ""
 echo "============================================"
 echo "  All dependencies installed successfully."
